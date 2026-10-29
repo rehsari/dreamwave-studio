@@ -53,8 +53,8 @@ user's files and the canvas. Scripts and styles still need `'unsafe-inline'` bec
 is omitted on purpose: it is ignored in a meta tag and only works as a real HTTP header, so add it at
 the host if you want to stop other sites from framing the studio.
 
-The link-preview tags use a relative `og:image`, which many scrapers ignore. Once the site has a real
-address, change `og:image` and `twitter:image` in `index.html` to absolute URLs.
+The site is hosted on GitHub Pages at https://rehsari.github.io/dreamwave-studio/ and the link-preview
+tags (`og:url`, `og:image`, `twitter:image`) point there. If the site moves, update them in `index.html`.
 
 Dropped models never reach the network. A `.gltf`, `.obj` or `.mtl` can reference an absolute URL,
 which would hand the visitor's IP address to that host, so only files dropped alongside the model are
