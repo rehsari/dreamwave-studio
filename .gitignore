@@ -1,0 +1,12 @@
+# macOS
+.DS_Store
+Icon?
+
+# Local tooling, not part of the site
+.claude/
+
+# Internal review notes and screenshots
+review/
+
+# Duplicate of assets/dreamwave-studio.svg, which is the one index.html loads
+DreamWavestudio.svg

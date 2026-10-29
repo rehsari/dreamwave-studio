@@ -1,0 +1,90 @@
+DreamWave_Studio
+
+This project contains two kinds of material under two different licenses: the
+source code, and the original artwork. Third-party components keep their own
+licenses and are listed in section 3.
+
+
+================================================================================
+1. SOURCE CODE - MIT License
+================================================================================
+
+Applies to: index.html, startup.js, and every other source file in this
+repository, except the artwork listed in section 2.
+
+Copyright (c) 2026 Rafael C Sanchez
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+================================================================================
+2. ARTWORK - Creative Commons Attribution-NonCommercial 4.0 International
+================================================================================
+
+Applies to:
+
+    model.glb                     the 3D character "Glitter"
+    assets/dreamwave-studio.svg   the DreamWave_Studio logo
+    DreamwaveIcon.png             the application icon
+    assets/icon-32.png            resized from the application icon
+    assets/icon-180.png           resized from the application icon
+
+The character "Glitter" was created by Rafael C Sanchez and remains his
+property. The same applies to the DreamWave_Studio logo and icon.
+
+Copyright (c) 2026 Rafael C Sanchez. All rights reserved, except as granted
+below.
+
+You are free to download, use, modify, remix and share this artwork, at no
+cost, provided that:
+
+  (a) you give appropriate credit to Rafael C Sanchez, link to this license,
+      and indicate if you made changes; and
+
+  (b) you do not use it for commercial purposes.
+
+"Commercial purposes" means any use primarily intended for or directed toward
+commercial advantage or monetary compensation. Selling the artwork, selling
+renders or animations made from it, using it in paid products, advertising or
+sponsored content, and using it in anything behind a paywall are all
+commercial uses.
+
+Renders you create with DreamWave_Studio from your OWN models are yours. This
+section only restricts the artwork listed above.
+
+For commercial licensing, contact the author.
+
+This is the Creative Commons Attribution-NonCommercial 4.0 International
+license (CC BY-NC 4.0).
+
+    Full legal text: https://creativecommons.org/licenses/by-nc/4.0/legalcode
+    Plain summary:   https://creativecommons.org/licenses/by-nc/4.0/
+
+
+================================================================================
+3. THIRD-PARTY COMPONENTS
+================================================================================
+
+three.js r170
+    MIT License, Copyright (c) 2010-2024 three.js authors.
+    Full text: vendor/three/LICENSE
+
+VT323
+    SIL Open Font License, Version 1.1. Designed by Peter Hull.
+    Files: vendor/fonts/vt323-latin.woff2, vendor/fonts/vt323-latin-ext.woff2
