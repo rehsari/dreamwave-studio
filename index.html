@@ -673,6 +673,9 @@ let model = null, mixer = null, actions = [], meshes = [];
 // Model and floor textures are tracked separately: unloading a model must not dispose the floor's.
 const modelTextures = new Set(), floorTextures = new Set();
 let paused = false;
+// Pause is a transport control, so it stops the turntable as well as the animation. Without this
+// the model keeps orbiting while paused and the button looks like it did nothing.
+const syncAutoRotate = () => { controls.autoRotate = !paused && !!S.autorotate && !isEditing(); };
 const clock = new THREE.Clock();
 let tapeTime = 0;
 
@@ -833,7 +836,7 @@ function setEditMode(mode) {
     transform.setSpace(editMode === 'scale' ? 'local' : 'world');
     applyModelTransform(); transform.attach(transformAnchor);
   } else { transform.detach(); controls.enabled = true; }
-  controls.autoRotate = !!S.autorotate && !isEditing();
+  syncAutoRotate();
   setAxisConstraint('');
 }
 function cancelTransform() {
@@ -1276,7 +1279,7 @@ new ResizeObserver(() => { if (!exporting && !recording) resize(); }).observe(st
 function applyAll() {
   for (const k of ['chroma', 'bleed', 'grain', 'scan', 'jitter', 'levels', 'dither', 'sat', 'contrast', 'vignette']) post.uniforms[k].value = +S[k];
   applyBackground();
-  controls.autoRotate = !!S.autorotate && !isEditing();
+  syncAutoRotate();
   snapUniforms.uAffine.value = +S.affine || 0;
   if (S.fog > 0 && !scene.fog) scene.fog = new THREE.Fog(S.bg, 1, 100);
   if (!(S.fog > 0) && scene.fog) scene.fog = null;
@@ -1362,7 +1365,7 @@ $('c-bg').addEventListener('input', e => { S.bg = e.target.value; applyAll(); })
 $('b-flip').addEventListener('click', () => { S.flipX = !S.flipX; orient(); });
 $('b-turn').addEventListener('click', () => { S.turnY = !S.turnY; orient(); });
 $('b-reset').addEventListener('click', frame);
-const setPaused = (p) => { paused = p; $('b-pause').textContent = p ? 'Play' : 'Pause'; $('osdMode').textContent = p ? 'PAUSE ❚❚' : 'PLAY ▶'; };
+const setPaused = (p) => { paused = p; syncAutoRotate(); $('b-pause').textContent = p ? 'Play' : 'Pause'; $('osdMode').textContent = p ? 'PAUSE ❚❚' : 'PLAY ▶'; };
 $('b-pause').addEventListener('click', () => setPaused(!paused));
 
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 1800); }
@@ -1386,6 +1389,14 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     travel(e.key === 'y' || e.key === 'Y' || e.shiftKey ? 1 : -1);
     return;
+  }
+  // Space is checked before the field guard for the same reason as undo: a slider keeps focus after
+  // it is dragged, so the guard below would swallow the shortcut until the user clicked elsewhere.
+  // A range input is the one control where the browser does nothing with Space; everywhere else it
+  // activates a button or opens a list, so leave it alone there.
+  const spaceTarget = e.target.closest && e.target.closest('input, select, textarea, button, a, [contenteditable="true"]');
+  if (e.code === 'Space' && !e.ctrlKey && !e.metaKey && !e.altKey && (!spaceTarget || spaceTarget.type === 'range')) {
+    e.preventDefault(); setPaused(!paused); return;
   }
   if (e.target.closest && e.target.closest('input, select, textarea, [contenteditable="true"]')) return;
   if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
@@ -1417,7 +1428,6 @@ window.addEventListener('keydown', (e) => {
     }
     return;
   }
-  if (e.code === 'Space') { e.preventDefault(); setPaused(!paused); }
   if (e.key === 'h' || e.key === 'H') { if (CFG.showPanel !== false) setRack(rack.hidden); }
 });
 if (CFG.showPanel === false) { rack.hidden = true; rackToggle.hidden = true; }
@@ -1612,7 +1622,7 @@ $('b-vid').addEventListener('click', () => {
   const restore = () => {
     if (stream) stream.getTracks().forEach(t => t.stop());
     recording = null;
-    transform.enabled = isEditing(); controls.enabled = true; controls.autoRotate = !!S.autorotate && !isEditing();
+    transform.enabled = isEditing(); controls.enabled = true; syncAutoRotate();
     $('rack').inert = false;
     $('b-vid').textContent = 'Record video';
     turntable.rotation.set(0, 0, 0);
@@ -1636,7 +1646,10 @@ $('b-vid').addEventListener('click', () => {
     recording = { rec, plan, start: performance.now() };
     transform.enabled = false; controls.enabled = false; controls.autoRotate = false; $('rack').inert = true;
     $('b-vid').textContent = 'Recording…';
-    rec.start(250);
+    // No timeslice: asking for periodic chunks makes Chrome leave the mfra fragment index out of
+    // the MP4. Browsers play it anyway, but QuickTime and anything else built on AVFoundation
+    // refuses the downloaded file. One chunk at the end costs nothing for a clip this short.
+    rec.start();
   } catch (err) { failed = true; restore(); toast('Video recording failed: ' + err.message); }
 });
 function recordTick() {
