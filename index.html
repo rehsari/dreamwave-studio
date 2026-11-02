@@ -107,6 +107,7 @@ input[type=range]::-moz-range-thumb { width: 12px; height: 22px; background: var
 select, input[type=color] { font: 400 11px var(--font-ui); color: var(--fg); background: #fff; border: 0; box-shadow: var(--sunken); padding: 6px; border-radius: 0; max-width: 158px; min-width: 0; }
 input[type=color] { width: 44px; height: 28px; padding: 4px; background: var(--bg); }
 .hint { color: var(--dim); font-size: 11px; line-height: 1.6; margin: 0; }
+.hint.warn { color: #ffd38a; border-left: 2px solid #ffd38a; padding-left: 8px; margin-top: 8px; overflow-wrap: anywhere; }
 .fname { font-size: 11px; color: var(--fg); background: #e5e5e5; box-shadow: var(--sunken); margin: 0; padding: 7px 8px; overflow-wrap: anywhere; }
 kbd { font: 10px var(--font-ui); background: var(--bg); box-shadow: var(--raised); padding: 2px 4px; white-space: nowrap; }
 .swatches { display: flex; flex-wrap: wrap; gap: 3px; min-height: 14px; }
@@ -177,7 +178,8 @@ textarea.out { width: 100%; box-sizing: border-box; height: 150px; font: 11px ui
         <input type="file" id="file" multiple hidden accept=".glb,.gltf,.fbx,.obj,.mtl,.bin,.png,.jpg,.jpeg,.webp,.bmp">
       </div>
       <p class="fname" id="fname">Glitter (sample)</p>
-      <p class="hint">Drag files onto the viewer. For .obj or .gltf, drop the model together with its .mtl/.bin and texture files.</p>
+      <p class="hint"><strong>.glb works best</strong> &mdash; its textures live inside the file. Drag a model onto the viewer, or drop a whole folder. For .obj, .gltf and .fbx, bring the texture files along too.</p>
+      <p class="hint warn" id="tex-report" aria-live="polite" hidden></p>
     </fieldset>
 
     <fieldset>
@@ -701,10 +703,19 @@ function addSnap(mat) {
   return mat;
 }
 
+// Resolves to nothing: stands in for a texture the model asked for but nobody supplied.
+const DEAD_URL = 'data:application/octet-stream;base64,';
+// A texture is only handed an .image once its file has actually loaded, so this is what separates a
+// real one from a reference that went nowhere. Only meaningful once the loaders have drained.
+const liveTex = (t) => (t && t.image ? t : null);
+
 function convertMaterial(src, texSet) {
-  const tex = src.map || src.emissiveMap || null;
-  let color = src.map ? (src.color ? src.color.clone() : new THREE.Color(1, 1, 1))
-    : src.emissiveMap ? new THREE.Color(1, 1, 1)
+  // Keeping a texture that never loaded would both paint the mesh black and make the renderer
+  // retry the upload every frame. Drop it and let the material fall back to its flat color.
+  const map = liveTex(src.map), emis = liveTex(src.emissiveMap);
+  const tex = map || emis || null;
+  let color = map ? (src.color ? src.color.clone() : new THREE.Color(1, 1, 1))
+    : emis ? new THREE.Color(1, 1, 1)
     : src.color ? src.color.clone() : new THREE.Color(0.8, 0.8, 0.8);
   // unlit-style exports keep their color in "emissive" with a black base color
   if (!tex && src.emissive && src.color && src.color.getHex() === 0 && src.emissive.getHex() !== 0) color = src.emissive.clone();
@@ -1028,8 +1039,43 @@ function showError(msg, err) {
   $('status').append(a, b);
 }
 
+// Why a model came out flat is the one thing worth saying plainly, and the two reasons need
+// different answers: textures that exist but were not handed over, versus materials that never
+// named a texture at all (procedural or node-based ones, which no importer can recover).
+function reportTextures(missing) {
+  const el = $('tex-report');
+  const names = [...new Set(missing)];
+  if (names.length) {
+    const shown = names.slice(0, 5).join(', ');
+    const more = names.length > 5 ? `, and ${names.length - 5} more` : '';
+    el.hidden = false;
+    const many = names.length > 1;
+    el.textContent = `${names.length} texture file${many ? 's' : ''} missing: ${shown}${more}. `
+      + `Drop ${many ? 'them' : 'it'} onto the viewer together with the model, or re-export as .glb so the textures travel inside the file.`;
+    toast(`${names.length} texture${many ? 's' : ''} missing \u2014 see the Model panel`);
+    return true;
+  }
+  if (modelTextures.size === 0) {
+    el.hidden = false;
+    el.textContent = "This model's materials do not name any textures, so there is nothing to load. "
+      + 'That is usually a procedural or node-based material, which .obj and .fbx cannot carry: bake it to an image '
+      + 'in your 3D tool, then export .glb. Toon shading is on so the model still reads cleanly.';
+    toast('Model carries no textures \u2014 see the Model panel');
+    return true;
+  }
+  el.hidden = true;
+  return false;
+}
+
 const extOf = (n) => (n.split('.').pop() || '').toLowerCase();
-const baseName = (u) => decodeURIComponent(String(u).split(/[\\/]/).pop().split('?')[0]).toLowerCase();
+// Both sides of the dropped-file lookup go through this, so a reference and a file name only have
+// to agree on the base name. NFC matters on macOS, which hands over file names in NFD: an accented
+// "Materiál.png" would otherwise never match the NFC spelling inside the model.
+const baseName = (u) => {
+  let n = String(u).split(/[\\/]/).pop().split('?')[0];
+  try { n = decodeURIComponent(n); } catch { /* a literal % in the name is not an escape */ }
+  return n.toLowerCase().normalize('NFC');
+};
 
 // Pack a .gltf (JSON) and its separate .bin files into one in-memory GLB, so nothing is fetched by URL.
 function packGLTF(json, fileBytes) {
@@ -1073,6 +1119,7 @@ async function loadModel(source) {
 async function readModel(source) {
   $('status').hidden = false; $('status').textContent = 'LOADING TAPE…';
   let result, label;
+  const missingTex = [];
   try {
     if (typeof source === 'string') {
       const res = await fetch(source);
@@ -1089,7 +1136,7 @@ async function readModel(source) {
       // Every other dropped file (textures, .mtl, .bin) is served to the loaders by file name.
       blobUrls.forEach(u => URL.revokeObjectURL(u)); blobUrls = [];
       const urlByName = new Map();
-      for (const f of files) if (f !== main) { const u = URL.createObjectURL(f); blobUrls.push(u); urlByName.set(f.name.toLowerCase(), u); }
+      for (const f of files) if (f !== main) { const u = URL.createObjectURL(f); blobUrls.push(u); urlByName.set(baseName(f.name), u); }
       const manager = new THREE.LoadingManager();
       // A dropped model must never reach the network. A .gltf, .obj or .mtl can name an absolute
       // URL, and loading it would send the visitor's address to that host. Only the dropped files
@@ -1098,16 +1145,26 @@ async function readModel(source) {
         if (u.startsWith('blob:') || u.startsWith('data:')) return u;
         const local = urlByName.get(baseName(u));
         if (local) return local;
-        console.warn(`Skipped "${u}": drop it together with the model to use it.`);
-        return 'data:application/octet-stream;base64,';
+        // Reported in the Model panel afterwards: the console is the wrong place for the one fact
+        // that tells someone why their model came out flat. Only name things that are actually a
+        // file someone could go and find; exporters emit placeholders like "." for empty image
+        // slots, and listing those as missing would send people looking for a file that never was.
+        const name = baseName(u);
+        if (/\.[a-z0-9]{2,5}$/.test(name)) missingTex.push(name);
+        return DEAD_URL;
       });
+      // .fbx and .obj parse synchronously but kick their textures off in the background, so without
+      // this the materials get read while every texture still looks equally unloaded.
+      let started = false;
+      manager.onStart = () => { started = true; };
+      const drained = new Promise(res => { manager.onLoad = res; });
       const ext = extOf(main.name);
       if (ext === 'glb') {
         result = await parseGLTF(await main.arrayBuffer(), '', manager);
       } else if (ext === 'gltf') {
         const json = JSON.parse(await main.text());
         const bytes = new Map();
-        for (const f of files) if (extOf(f.name) === 'bin') bytes.set(f.name.toLowerCase(), new Uint8Array(await f.arrayBuffer()));
+        for (const f of files) if (extOf(f.name) === 'bin') bytes.set(baseName(f.name), new Uint8Array(await f.arrayBuffer()));
         result = await parseGLTF(packGLTF(json, bytes), '', manager);
       } else if (ext === 'fbx') {
         const group = new FBXLoader(manager).parse(await main.arrayBuffer(), '');
@@ -1118,6 +1175,8 @@ async function readModel(source) {
         if (mtl) { const mats = new MTLLoader(manager).parse(await mtl.text(), ''); mats.preload(); obj.setMaterials(mats); }
         result = { scene: obj.parse(await main.text()), animations: [] };
       }
+      // Give the textures a bounded chance to finish; a wedged one must not hold the model hostage.
+      if (started) await Promise.race([drained, new Promise(r => setTimeout(r, 15000))]);
       S.framing = 'full'; S.anim = 0; S.flipX = false; S.turnY = false;
       resetModelTransform();
     }
@@ -1132,9 +1191,11 @@ async function readModel(source) {
     $('b-sample').disabled = isSample;
     $('b-sample').textContent = isSample ? 'Sample loaded' : 'Sample character';
     syncUI();
-    if (typeof source !== 'string' && modelTextures.size === 0 && S.shading !== 'toon') {
-      S.shading = 'toon'; applyAll(); syncUI(); toast('No textures found: switched to toon shading');
-    } else if (typeof source !== 'string') toast('Loaded ' + label);
+    if (!isSample) {
+      const issue = reportTextures(missingTex);
+      if (modelTextures.size === 0 && S.shading !== 'toon') { S.shading = 'toon'; applyAll(); syncUI(); }
+      if (!issue) toast('Loaded ' + label);
+    } else $('tex-report').hidden = true;
     return true;
   } catch (err) {
     showError('MODEL LOADED, BUT THE VIEWER HIT AN ERROR.', err);
@@ -1365,13 +1426,44 @@ let dragDepth = 0;
 stage.addEventListener('dragenter', e => { e.preventDefault(); dragDepth++; $('drop').hidden = false; });
 stage.addEventListener('dragover', e => e.preventDefault());
 stage.addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; $('drop').hidden = true; } });
+// Models arrive as a folder far more often than as a tidy pile of files, and dataTransfer.files
+// leaves directories out entirely. Walk the entries so "drop the folder" actually works.
+async function collectFiles(dt) {
+  const flat = [...dt.files];
+  const roots = [];
+  // Must read items before the first await: the DataTransfer is emptied once the event returns.
+  for (const it of dt.items || []) {
+    if (it.kind !== 'file' || !it.webkitGetAsEntry) continue;
+    const entry = it.webkitGetAsEntry();
+    if (entry) roots.push(entry);
+  }
+  if (!roots.some(r => r.isDirectory)) return flat;
+  const out = [];
+  const walk = async (entry, depth) => {
+    if (out.length >= 400 || entry.name.startsWith('.') || entry.name === '__MACOSX') return;
+    if (entry.isFile) { out.push(await new Promise((res, rej) => entry.file(res, rej))); return; }
+    if (!entry.isDirectory || depth >= 6) return;
+    const reader = entry.createReader();
+    // readEntries hands back one batch at a time and signals the end with an empty one.
+    for (;;) {
+      const batch = await new Promise((res, rej) => reader.readEntries(res, rej));
+      if (!batch.length) break;
+      for (const child of batch) await walk(child, depth + 1);
+    }
+  };
+  try { for (const r of roots) await walk(r, 0); } catch { return flat; }
+  return out.length ? out : flat;
+}
+
 stage.addEventListener('drop', e => {
   e.preventDefault(); dragDepth = 0; $('drop').hidden = true;
   if (exporting || recording) return;
-  const files = [...e.dataTransfer.files]; if (!files.length) return;
-  const hasModel = files.some(f => ['glb', 'gltf', 'fbx', 'obj'].includes(extOf(f.name)));
-  const img = files.find(f => /^image\//.test(f.type));
-  if (!hasModel && img) setBackgroundImage(img); else loadModel(files);
+  collectFiles(e.dataTransfer).then(files => {
+    if (!files.length) return;
+    const hasModel = files.some(f => ['glb', 'gltf', 'fbx', 'obj'].includes(extOf(f.name)));
+    const img = files.find(f => /^image\//.test(f.type));
+    if (!hasModel && img) setBackgroundImage(img); else loadModel(files);
+  });
 });
 
 /* ---------- saving files ---------- */
