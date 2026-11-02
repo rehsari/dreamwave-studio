@@ -68,7 +68,8 @@ body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--fo
 .osd .tr { position: absolute; top: calc(18px + env(safe-area-inset-top, 0px)); right: 22px; }
 .drop { position: absolute; inset: 12px; border: 2px dashed #fff; display: grid; place-items: center; text-align: center; padding: 16px; font-family: var(--font-osd); font-size: 28px; color: #fff; background: rgba(0,0,80,.8); pointer-events: none; z-index: 4; }
 .busy { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(10,10,12,.8); font-family: var(--font-osd); font-size: 30px; color: #f4f1ea; z-index: 6; text-align: center; padding: 16px; }
-.status { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-family: var(--font-osd); font-size: 28px; color: #f4f1ea; text-align: center; padding-inline: 16px; --dim: #c6c6c6; }
+/* Sits over the canvas, so it must not eat the drags that orbit the camera. */
+.status { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-family: var(--font-osd); font-size: 28px; color: #f4f1ea; text-align: center; padding-inline: 16px; --dim: #c6c6c6; pointer-events: none; }
 
 /* Same docked control rack, with etched groups and raised controls. */
 .rack { width: 312px; flex: none; height: 100%; overflow-y: auto; background: var(--panel); padding: 4px 12px 18px; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px; box-shadow: var(--raised); scrollbar-color: #aaa #dfdfdf; scrollbar-width: auto; }
@@ -107,7 +108,7 @@ input[type=range]::-moz-range-thumb { width: 12px; height: 22px; background: var
 select, input[type=color] { font: 400 11px var(--font-ui); color: var(--fg); background: #fff; border: 0; box-shadow: var(--sunken); padding: 6px; border-radius: 0; max-width: 158px; min-width: 0; }
 input[type=color] { width: 44px; height: 28px; padding: 4px; background: var(--bg); }
 .hint { color: var(--dim); font-size: 11px; line-height: 1.6; margin: 0; }
-.hint.warn { color: #ffd38a; border-left: 2px solid #ffd38a; padding-left: 8px; margin-top: 8px; overflow-wrap: anywhere; }
+.hint.warn { color: #0000ee; border-left: 2px solid #0000ee; padding-left: 8px; margin-top: 8px; overflow-wrap: anywhere; }
 .fname { font-size: 11px; color: var(--fg); background: #e5e5e5; box-shadow: var(--sunken); margin: 0; padding: 7px 8px; overflow-wrap: anywhere; }
 kbd { font: 10px var(--font-ui); background: var(--bg); box-shadow: var(--raised); padding: 2px 4px; white-space: nowrap; }
 .swatches { display: flex; flex-wrap: wrap; gap: 3px; min-height: 14px; }
@@ -178,7 +179,7 @@ textarea.out { width: 100%; box-sizing: border-box; height: 150px; font: 11px ui
         <input type="file" id="file" multiple hidden accept=".glb,.gltf,.fbx,.obj,.mtl,.bin,.png,.jpg,.jpeg,.webp,.bmp">
       </div>
       <p class="fname" id="fname">Glitter (sample)</p>
-      <p class="hint"><strong>.glb works best</strong> &mdash; its textures live inside the file. Drag a model onto the viewer, or drop a whole folder. For .obj, .gltf and .fbx, bring the texture files along too.</p>
+      <p class="hint">Drag files onto the viewer. For .obj or .gltf, drop the model together with its .mtl/.bin and texture files.</p>
       <p class="hint warn" id="tex-report" aria-live="polite" hidden></p>
     </fieldset>
 
@@ -223,7 +224,7 @@ textarea.out { width: 100%; box-sizing: border-box; height: 150px; font: 11px ui
         <button class="chip" type="button" data-preset="arcade">Arcade</button>
         <button class="chip" type="button" data-preset="comic">Comic</button>
         <button class="chip" type="button" data-preset="ascii">ASCII</button>
-        <button class="chip" type="button" data-preset="chunky">Chunky</button>
+        <button class="chip" type="button" data-preset="glitter">Glitter</button>
         <button class="chip" type="button" data-preset="clean">Clean</button>
       </div>
     </fieldset>
@@ -370,7 +371,7 @@ const PRESETS = {
   arcade:  { ...BASE_FX, pixel: 3, wobble: 0.2, crisp: true,  levels: 32, dither: 0.3,  sat: 1.3, contrast: 1.1,  shading: 'flat', chroma: 1.5, bleed: 0.2,  grain: 0.15, scan: 0.5,  jitter: 0.05, vignette: 0.3,  osd: false, crt: 0.6, glow: 0.5, mask: 0.5 },
   comic:   { ...BASE_FX, pixel: 2, wobble: 0,   crisp: false, levels: 64, dither: 0,    sat: 1.3, contrast: 1.1,  shading: 'toon', chroma: 0,   bleed: 0,    grain: 0,    scan: 0,    jitter: 0,    vignette: 0,    osd: false, style: 'halftone', cell: 7, outline: 1.5 },
   ascii:   { ...BASE_FX, pixel: 2, wobble: 0,   crisp: true,  levels: 64, dither: 0,    sat: 1.4, contrast: 1.2,  shading: 'flat', chroma: 0,   bleed: 0,    grain: 0.1,  scan: 0.2,  jitter: 0,    vignette: 0.4,  osd: false, style: 'ascii', cell: 15, crt: 0.25, glow: 0.4, mask: 0.3 },
-  chunky:  { ...BASE_FX, pixel: 8, wobble: 0.5, crisp: true,  levels: 7,  dither: 0.45, sat: 1.4, contrast: 1.1,  shading: 'toon', chroma: 3,   bleed: 0.3,  grain: 0.25, scan: 0.35, jitter: 0.15, vignette: 0.3,  osd: true },
+  glitter: { ...BASE_FX, pixel: 3, wobble: 0.05, crisp: true, levels: 36, dither: 0.6,  sat: 1.8, contrast: 0.85, shading: 'flat', chroma: 1.5, bleed: 0.3,  grain: 0.8,  scan: 0.15, jitter: 0.05, vignette: 0.5,  osd: false },
   clean:   { ...BASE_FX, pixel: 1, wobble: 0,   crisp: false, levels: 64, dither: 0,    sat: 1.0, contrast: 1.0,  shading: 'flat', chroma: 0,   bleed: 0,    grain: 0,    scan: 0,    jitter: 0,    vignette: 0,    osd: false },
 };
 const PALETTES = {
@@ -380,11 +381,11 @@ const PALETTES = {
   cga:    { name: 'CGA', match: 'color', colors: ['#000000', '#55ffff', '#ff55ff', '#ffffff'] },
   pico:   { name: 'PICO-8', match: 'color', colors: ['#000000', '#1d2b53', '#7e2553', '#008751', '#ab5236', '#5f574f', '#c2c3c7', '#fff1e8', '#ff004d', '#ffa300', '#ffec27', '#00e436', '#29adff', '#83769c', '#ff77a8', '#ffccaa'] },
 };
-const SCENE_DEFAULTS = { preset: 'vhs', anim: 0, framing: 'bust', autorotate: false, upright: true, bg: '#36363a', flipX: false, turnY: false, speed: 1,
+const SCENE_DEFAULTS = { preset: 'glitter', anim: 0, framing: 'bust', autorotate: false, upright: true, bg: '#36363a', flipX: false, turnY: false, speed: 1,
   bgMode: 'color', skyRotation: 0, floor: 'off', floorColor: '#4a4a52', tileSize: 1,
   posX: 0, posY: 0, posZ: 0, rotX: 0, rotY: 0, rotZ: 0,
   scaleX: 1, scaleY: 1, scaleZ: 1, customPal: [], fixedScale: true };
-const S = Object.assign({}, SCENE_DEFAULTS, PRESETS.vhs, CFG.settings || {});
+const S = Object.assign({}, SCENE_DEFAULTS, PRESETS.glitter, CFG.settings || {});
 
 const SCHEMA = [
   { group: 'Pixels', items: [
@@ -1114,7 +1115,13 @@ async function loadModel(source) {
   loadingModel = true;
   let loaded = false;
   try { loaded = await readModel(source); return loaded; }
-  finally { loadingModel = false; if (loaded) resetHistory(); }
+  finally {
+    loadingModel = false;
+    // Every texture is on the GPU by the time readModel returns, so the blobs have no further use.
+    // Keeping them alive pins each dropped file in memory for the rest of the session.
+    blobUrls.forEach(u => URL.revokeObjectURL(u)); blobUrls = [];
+    if (loaded) resetHistory();
+  }
 }
 async function readModel(source) {
   $('status').hidden = false; $('status').textContent = 'LOADING TAPE…';
@@ -1122,7 +1129,9 @@ async function readModel(source) {
   const missingTex = [];
   try {
     if (typeof source === 'string') {
-      const res = await fetch(source);
+      // A request that stalls rather than fails never settles, and loadModel's `finally` would never
+      // run: loadingModel would stay true and refuse every later drop until the page was reloaded.
+      const res = await fetch(source, { signal: AbortSignal.timeout(60000) });
       if (!res.ok) throw new Error(`Server answered ${res.status} for ${source}`);
       const buf = await res.arrayBuffer();
       let path = THREE.LoaderUtils.extractUrlBase(source); if (path === './') path = '';
@@ -1134,7 +1143,6 @@ async function readModel(source) {
       if (!main) throw new Error('No model found. Supported: .glb, .gltf, .fbx, .obj');
       label = main.name;
       // Every other dropped file (textures, .mtl, .bin) is served to the loaders by file name.
-      blobUrls.forEach(u => URL.revokeObjectURL(u)); blobUrls = [];
       const urlByName = new Map();
       for (const f of files) if (f !== main) { const u = URL.createObjectURL(f); blobUrls.push(u); urlByName.set(baseName(f.name), u); }
       const manager = new THREE.LoadingManager();
@@ -1420,6 +1428,9 @@ $('b-load').addEventListener('click', () => $('file').click());
 $('file').addEventListener('change', e => { if (e.target.files.length) loadModel(e.target.files); e.target.value = ''; });
 $('b-sample').addEventListener('click', () => {
   if (location.protocol === 'file:') { showLocalFileHelp(); return; }
+  // loadModel turns a concurrent load away, and these would then be left applied to the model still
+  // on screen: the number fields would read 0/1 while it sat wherever the user had put it.
+  if (loadingModel) { toast('Still loading the previous model'); return; }
   S.framing = 'bust'; S.anim = 0; S.flipX = false; S.turnY = false;
   resetModelTransform(); loadModel(CFG.model || 'model.glb'); });
 let dragDepth = 0;
@@ -1454,6 +1465,11 @@ async function collectFiles(dt) {
   try { for (const r of roots) await walk(r, 0); } catch { return flat; }
   return out.length ? out : flat;
 }
+
+// Anything that misses the viewport — the rack is 312px of it — would otherwise be handled by the
+// browser, which navigates the tab to the dropped file and takes the scene and every setting with it.
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => { e.preventDefault(); dragDepth = 0; $('drop').hidden = true; });
 
 stage.addEventListener('drop', e => {
   e.preventDefault(); dragDepth = 0; $('drop').hidden = true;
@@ -1849,8 +1865,14 @@ async function setBackgroundImage(file) {
 $('b-bgimg').addEventListener('click', () => $('bgfile').click());
 $('bgfile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) setBackgroundImage(f); });
 $('c-bgmode').addEventListener('change', e => {
+  const prev = S.bgMode;
   S.bgMode = e.target.value;
-  if (S.bgMode !== 'color' && !bgTex) { $('bgfile').click(); }
+  if (S.bgMode !== 'color' && !bgTex) {
+    // A dismissed dialog fires `cancel` and never `change`, so without this the mode would stick on
+    // an image nobody chose: the dropdown would read "Flat image" over a plain color.
+    $('bgfile').addEventListener('cancel', () => { if (!bgTex) { S.bgMode = prev; applyAll(); syncUI(); } }, { once: true });
+    $('bgfile').click();
+  }
   applyAll(); syncUI();
 });
 $('c-skyrotation').addEventListener('input', e => {
@@ -1914,8 +1936,13 @@ $('c-tilesize').addEventListener('input', e => {
   $('c-tilesize-o').textContent = fmtNum(S.tileSize) + '×';
 });
 $('c-floor').addEventListener('change', e => {
+  const prev = S.floor;
   S.floor = e.target.value;
-  if (S.floor === 'image' && !floorImg) $('floorfile').click();
+  if (S.floor === 'image' && !floorImg) {
+    // As with the backdrop: cancelling would leave "Image" selected and no floor drawn at all.
+    $('floorfile').addEventListener('cancel', () => { if (!floorImg) { S.floor = prev; buildFloor(); syncUI(); } }, { once: true });
+    $('floorfile').click();
+  }
   buildFloor(); syncUI();
 });
 $('c-floorcolor').addEventListener('input', e => { S.floorColor = e.target.value; buildFloor(); });
@@ -1924,6 +1951,12 @@ $('floorfile').addEventListener('change', async e => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
   try { floorImg = await loadImage(f); S.floor = 'image'; buildFloor(); syncUI(); toast('Floor image set'); } catch (err) { toast(err.message); }
 });
+// A look saved in an earlier session keeps "image" for the backdrop or floor, but the image itself
+// cannot be stored. Point the setting back at what is actually drawn instead of claiming otherwise.
+function normalizeSceneImages() {
+  if (S.bgMode !== 'color' && !bgTex) S.bgMode = 'color';
+  if (S.floor === 'image' && !floorImg) S.floor = 'off';
+}
 
 /* ---------- my looks ---------- */
 const LOOKS_KEY = 'DreamWave_Studio.looks';
@@ -1946,7 +1979,7 @@ function renderLooks() {
   looks.forEach((lk, i) => {
     const wrap = document.createElement('span'); wrap.className = 'look';
     const a = document.createElement('button'); a.type = 'button'; a.textContent = lk.name;
-    a.addEventListener('click', () => { Object.assign(S, lk.s); S.preset = 'custom'; applyAll(); buildFloor(); syncUI(); });
+    a.addEventListener('click', () => { Object.assign(S, lk.s); normalizeSceneImages(); S.preset = 'custom'; applyAll(); buildFloor(); syncUI(); });
     const x = document.createElement('button'); x.type = 'button'; x.textContent = '×'; x.setAttribute('aria-label', 'Delete ' + lk.name);
     x.addEventListener('click', () => { const l = readLooks(); l.splice(i, 1); writeLooks(l); renderLooks(); });
     wrap.append(a, x); el.appendChild(wrap);

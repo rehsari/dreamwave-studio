@@ -104,7 +104,7 @@ served to the loaders; anything else is skipped, logged to the console and left 
   one full turn and/or whole animation cycles), video (MediaRecorder on the canvas, MP4 where
   supported, otherwise WebM; recorded in real time for one loop).
   Inside Claude, saving goes through the platform's downloads capability; elsewhere it's a normal download.
-- **Styles:** presets VHS, PS1, Game Boy, Arcade, Comic, ASCII, Chunky, Clean.
+- **Styles:** presets VHS, PS1, Game Boy, Arcade, Comic, ASCII, Glitter (the default), Clean.
   Palettes (Game Boy, 4-gray, 1-bit, CGA, PICO-8, or imported .hex/.txt/.gpl/image) matched by color or
   brightness with Bayer dithering. ASCII (glyph atlas, one character per cell) and CMYK halftone styles.
   CRT curve, glow and phosphor mask. PS1 affine texture warping (uv*w / w trick injected into the
