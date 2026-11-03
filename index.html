@@ -460,10 +460,8 @@ scene.add(hemi, key);
 
 const placement = new THREE.Group(); // user position stays independent of orientation and loop rotation
 scene.add(placement);
-const turntable = new THREE.Group(); // spun around the model's own origin for loop exports
-placement.add(turntable);
 const modelTransform = new THREE.Group(); // user rotation and scale around the model center
-turntable.add(modelTransform);
+placement.add(modelTransform);
 const centerOffset = new THREE.Group();
 modelTransform.add(centerOffset);
 const pivot = new THREE.Group();   // holds orientation fix
@@ -926,7 +924,6 @@ function orient(keepCamera = false) {
   centerOffset.position.set(0, 0, 0);
   placement.updateMatrixWorld(true);
   pivot.quaternion.identity(); pivot.position.set(0, 0, 0);
-  turntable.rotation.set(0, 0, 0);
   if (mixer) mixer.update(0);
   placement.updateMatrixWorld(true);
   const q = new THREE.Quaternion();
@@ -1520,6 +1517,7 @@ function exportDims(heightPx) {
 }
 function beginExport(w, h, transparent) {
   exporting = true;
+  beginSpin();
   transform.enabled = false; $('rack').inert = true;
   renderer.setPixelRatio(1); renderer.setSize(w, h, false);
   W = w; H = h; camera.aspect = w / h; camera.updateProjectionMatrix(); applyPixel();
@@ -1527,7 +1525,7 @@ function beginExport(w, h, transparent) {
 }
 function endExport() {
   renderer.setClearColor(0x000000, 1); post.uniforms.transparent.value = 0; applyBackground();
-  turntable.rotation.set(0, 0, 0);
+  endSpin();
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); resize();
   exporting = false; transform.enabled = isEditing(); $('rack').inert = false; busy('');
 }
@@ -1564,9 +1562,24 @@ function loopPlan() {
   if (spin && clipLen) dur = clipLen * Math.max(1, Math.round(4 / clipLen));
   return { dur, spin, act };
 }
+// A turntable export orbits the camera, the same motion as on-screen auto-rotate, so the floor, the
+// backdrop and the contact shadow move with it. Spinning the model instead left the scene around it
+// standing still, and the camera direction here matches what auto-rotate shows.
+const SPIN_AXIS = new THREE.Vector3(0, 1, 0);
+let spinOffset = null;   // camera position relative to the orbit target when the loop started
+function beginSpin() { spinOffset = camera.position.clone().sub(controls.target); }
+function endSpin() {
+  if (!spinOffset) return;
+  camera.position.copy(controls.target).add(spinOffset);
+  camera.lookAt(controls.target);
+  spinOffset = null;
+}
 function poseAt(t, plan) {
   if (plan.act && mixer) mixer.setTime(t);   // setTime applies the mixer's speed (timeScale)
-  turntable.rotation.y = plan.spin ? (t / plan.dur) * Math.PI * 2 : 0;
+  if (plan.spin && spinOffset) {
+    camera.position.copy(spinOffset).applyAxisAngle(SPIN_AXIS, -(t / plan.dur) * Math.PI * 2).add(controls.target);
+    camera.lookAt(controls.target);
+  }
   post.uniforms.time.value = 1 + (t / plan.dur) / 0.06;   // the rolling tape band also completes one pass
 }
 
@@ -1625,7 +1638,7 @@ $('b-vid').addEventListener('click', () => {
     transform.enabled = isEditing(); controls.enabled = true; syncAutoRotate();
     $('rack').inert = false;
     $('b-vid').textContent = 'Record video';
-    turntable.rotation.set(0, 0, 0);
+    endSpin();
     resize();
   };
   try {
@@ -1644,6 +1657,7 @@ $('b-vid').addEventListener('click', () => {
       catch (err) { toast('Could not save video: ' + err.message); }
     };
     recording = { rec, plan, start: performance.now() };
+    beginSpin();
     transform.enabled = false; controls.enabled = false; controls.autoRotate = false; $('rack').inert = true;
     $('b-vid').textContent = 'Recording…';
     // No timeslice: asking for periodic chunks makes Chrome leave the mfra fragment index out of
@@ -1656,11 +1670,10 @@ function recordTick() {
   const t = (performance.now() - recording.start) / 1000;
   if (t >= recording.plan.dur) {
     const r = recording.rec; recording = null; $('b-vid').textContent = 'Record video';
-    turntable.rotation.set(0, 0, 0);
-    r.stop(); return;
+    r.stop(); return;   // onstop → restore() puts the camera back
   }
-  poseAt(t, recording.plan);
   controls.update();
+  poseAt(t, recording.plan);   // after update(), so the spin has the final word on the camera
   renderNow();
 }
 function updateExportInfo() {
