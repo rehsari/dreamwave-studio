@@ -1935,6 +1935,10 @@ function buildFloor() {
   const conv = convertMaterial(new THREE.MeshBasicMaterial({ map: tex, color: 0xffffff }), floorTextures);
   floorMesh = new THREE.Mesh(geo, conv.flat); floorMesh.userData.flat = conv.flat; floorMesh.userData.toon = conv.toon;
   floorMesh.userData.span = span;
+  // The floor is vertex-snapped and the contact shadow is not, so at grazing angles their depths
+  // disagree by more than any fixed Y gap can cover. Push the floor back by a slope-scaled offset
+  // (which grows exactly where the error does) so the shadow decal always wins the depth test.
+  for (const m of [conv.flat, conv.toon]) { m.polygonOffset = true; m.polygonOffsetFactor = 4; m.polygonOffsetUnits = 4; }
   applyFloorScale();
   floorMesh.position.y = -h * 0.002; floorMesh.frustumCulled = false;
   scene.add(floorMesh); meshes.push(floorMesh);
@@ -1944,9 +1948,10 @@ function buildFloor() {
   sx.fillStyle = gr; sx.fillRect(0, 0, 128, 128);
   const st = new THREE.CanvasTexture(sc);
   const foot = Math.max(size.x, size.z) * 1.2;
-  shadowMesh = new THREE.Mesh(new THREE.PlaneGeometry(foot, foot).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: st, transparent: true, depthWrite: false }));
+  shadowMesh = new THREE.Mesh(new THREE.PlaneGeometry(foot, foot, 24, 24).rotateX(-Math.PI / 2),
+    addSnap(new THREE.MeshBasicMaterial({ map: st, transparent: true, depthWrite: false })));
   shadowMesh.userData.baseFoot = foot;
-  shadowMesh.position.y = h * 0.001; scene.add(shadowMesh);
+  shadowMesh.position.y = h * 0.004; scene.add(shadowMesh);
   updateContactShadow();
   applyShading(); applyTextureFilter(true);
 }
